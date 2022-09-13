@@ -1,3 +1,21 @@
+<#
+    .SYSNOPSIS
+        pwshF5DistributedCloud.psm1
+
+    .DESCRIPTION
+        A REST-based module for interacting with the F5 Distributed Cloud API
+
+    .NOTES
+        Created by: Chris Triner
+
+
+#>
+
+
+
+
+
+
 function Set-XCConnectionDetails {
     param(
         [Parameter(Mandatory = $true)]
