@@ -20,11 +20,11 @@ All functions will be prefixed with "XC" after the relevant (standard) PowerShel
 2. Generate API Key in Distributed Cloud console by following the below steps:  
   a. Select your account icon on the top right of the Distributed Cloud console  
   b. Select `Account Settings`  
-  c. Select `Credentials`
-  d. Select `Add Credential`
-  e. As this module currently only support API Token authentication, select `API Token` from the `Credential type` dropdown
-  f. Set `expiry date`
-  g. Select `Generate`
+  c. Select `Credentials`  
+  d. Select `Add Credential`  
+  e. As this module currently only support API Token authentication, select `API Token` from the `Credential type` dropdown  
+  f. Set `expiry date`  
+  g. Select `Generate`  
 
 3. Take note of your account tenancy (first section of your URL)
 
@@ -34,7 +34,7 @@ All functions will be prefixed with "XC" after the relevant (standard) PowerShel
 
 1. Set the connection details by executing the `Set-XCConnectionDetails` function, i.e.
 
-  `Set-XCConnectionDetails -apiToken $api_token -tenant $tenant`
+    `Set-XCConnectionDetails -apiToken $api_token -tenant $tenant`
 
 
 ### Example Commands
