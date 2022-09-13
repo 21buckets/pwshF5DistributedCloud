@@ -202,11 +202,13 @@ function New-XCDNSDomain {
 
     }
 
+    $body_json = ConvertTo-Json $body -depth 100
+
 
     $req = @{
         Uri         = $xc_connection.url + $uri_path
         Method      = 'POST'
-        Body     = $body      
+        Body     = $body_json      
         ContentType = 'application/json'
         Headers = @{
             "Authorization" = "APIToken $($xc_connection.api_token)"
@@ -326,6 +328,12 @@ function Remove-XCDNSZone {
 
 
 function New-XCDNSZone {
+
+    <#
+        Currently only supports Primary DNS Zones
+
+    #>
+
     param(
         [Parameter(Mandatory=$true)]
         [string]$name,
@@ -340,7 +348,11 @@ function New-XCDNSZone {
         [switch]$disabled,
 
         [Parameter(Mandatory=$false)]
-        [PSCustomObject]$labels,
+        [PSCustomObject]$labels = @{},
+
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("primary","secondary")]
+        [string]$zoneType = "primary",
 
         [Parameter(Mandatory=$false,
             ParameterSetName='primary')]
@@ -378,58 +390,228 @@ function New-XCDNSZone {
 
     
 
-
+    #Initial Object creation
     [PSCustomObject]$body = @{
         "metadata" = @{
             "name" = $name
-            "description" = $description
-            "annotations" = $annotations
-            "disable" = $disable
             "labels" = $labels
             "namespace" = $namespace
         }
-        "spec" = @{
-            "domain" = $domain
-        }
+        "spec" = @{}
     }
 
+    if($description){$body.metadata.description = $description}
+    if($annotations){$body.metadata.annotations = $annotations}
+    #disabled property doesnt seem to do anything
+    if($disabled.IsPresent -eq $true){$body.metadata.disable = $true}
+    if($domain){$body.spec.domain = $domain}
 
-    $parameter_set = $PsCmdlet.ParameterSetName
-    if($parameter_set -eq "primary"){
+    
+    if($zoneType -eq "primary"){
         Write-host "Primary parameter set"
 
         #Create initial primary spec object
-        $primary_spec = @{
-            "admin" = $admin
-        }
+        $primary_spec = @{}
+
+        #admin property does not appear to set anything....
+        if($admin){$primary_spec.admin = $admin}
 
         #if not using custom SOA parameters, use default, otherwise add in custom
         if($useCustomSOAParameters -eq $false){
-            $primary_spec["default_soa_parameters"] = @{}
+            $primary_spec["default_soa_parameters"] = $null
         }else{
             $primary_spec["soa_parameters"] = $customSOAParameters
         }
 
+        #Add in default rr set
+        if($defaultRRSetGroup.count -gt 0){
+            $primary_spec["default_rr_set_group"] = $defaultRRSetGroup
+        }
 
+        #Add in additional record sets
+        if($RRSetGroup.count -gt 0){
+            $primary_spec["rr_set_group"] = $RRSetGroup
+        }
 
-        $body["primary"] = $primary_spec
+        #Add DNS Security Mode
+        if($dnssecEnabled.IsPresent){
+            $dnssec_mode = @{"enable"= @{}}
+           
+        }else{
+            $dnssec_mode = @{"disable"= @{}}
+        }
+        $primary_spec.dnssec_mode = $dnssec_mode
 
-    }elseif($parameter_set -eq "secondary"){
+        $body.spec["primary"] = $primary_spec
+
+    }elseif($zoneType -eq "secondary"){
         Write-host "secondary parameter set"
     }
 
-    ConvertTo-json $body
+    $body_json = ConvertTo-json $body -depth 100
+    Write-host $body_json
 
 
     $req = @{
         Uri         = $xc_connection.url + $uri_path
         Method      = 'POST'
-        Body     = $body      
+        Body     = $body_json     
         ContentType = 'application/json'
         Headers = @{
             "Authorization" = "APIToken $($xc_connection.api_token)"
+            "Accept" = "*/*"
+            
+            
         }
     }
 
-   # return Invoke-RestMethod @req -debug
+    Write-host $req.uri
+
+    return Invoke-RestMethod @req
 }
+
+
+function Set-XCDNSZone {
+    <#
+        Currently only supports Primary DNS Zones
+
+    #>
+
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$name,
+
+        [Parameter(Mandatory=$false)]
+        [string]$description,
+
+        [Parameter(Mandatory=$false)]
+        [PSCustomObject]$annotations,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$disabled,
+
+        [Parameter(Mandatory=$false)]
+        [PSCustomObject]$labels = @{},
+
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("primary","secondary")]
+        [string]$zoneType = "primary",
+
+        [Parameter(Mandatory=$false,
+            ParameterSetName='primary')]
+        [string]$admin,
+
+        [Parameter(Mandatory=$false,
+            ParameterSetName='primary')]
+        [switch]$dnssecEnabled,
+
+        [Parameter(Mandatory=$false,
+            ParameterSetName='primary')]
+        [switch]$useCustomSOAParameters,
+
+        [Parameter(Mandatory=$false,
+            ParameterSetName='primary')]
+        [PSCustomObject]$customSOAParameters,
+
+        [Parameter(Mandatory=$false,
+            ParameterSetName='primary')]
+        [Array]$defaultRRSetGroup,
+
+        [Parameter(Mandatory=$false,
+            ParameterSetName='primary')]
+        [Array]$RRSetGroup,
+
+        [Parameter(Mandatory=$false)]
+        $namespace = 'system'
+    )
+
+  
+
+    
+    $uri_path = "/api/config/dns/namespaces/${namespace}/dns_zones/${name}"
+    $xc_connection = $global:XCConnection
+
+    
+
+    #Initial Object creation
+    [PSCustomObject]$body = @{
+        "metadata" = @{
+            "name" = $name
+            "labels" = $labels
+            "namespace" = $namespace
+        }
+        "spec" = @{}
+    }
+
+    if($description){$body.metadata.description = $description}
+    if($annotations){$body.metadata.annotations = $annotations}
+    #disabled property doesnt seem to do anything
+    if($disabled.IsPresent -eq $true){$body.metadata.disable = $true}
+    if($domain){$body.spec.domain = $domain}
+
+    
+    if($zoneType -eq "primary"){
+        Write-host "Primary parameter set"
+
+        #Create initial primary spec object
+        $primary_spec = @{}
+
+        #admin property does not appear to set anything....
+        if($admin){$primary_spec.admin = $admin}
+
+        #if not using custom SOA parameters, use default, otherwise add in custom
+        if($useCustomSOAParameters -eq $false){
+            $primary_spec["default_soa_parameters"] = $null
+        }else{
+            $primary_spec["soa_parameters"] = $customSOAParameters
+        }
+
+        #Add in default rr set
+        if($defaultRRSetGroup.count -gt 0){
+            $primary_spec["default_rr_set_group"] = $defaultRRSetGroup
+        }
+
+        #Add in additional record sets
+        if($RRSetGroup.count -gt 0){
+            $primary_spec["rr_set_group"] = $RRSetGroup
+        }
+
+        #Add DNS Security Mode
+        if($dnssecEnabled.IsPresent){
+            $dnssec_mode = @{"enable"= @{}}
+           
+        }else{
+            $dnssec_mode = @{"disable"= @{}}
+        }
+        $primary_spec.dnssec_mode = $dnssec_mode
+
+        $body.spec["primary"] = $primary_spec
+
+    }elseif($zoneType -eq "secondary"){
+        Write-host "secondary parameter set"
+    }
+
+    $body_json = ConvertTo-json $body -depth 100
+    Write-host $body_json
+
+
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path
+        Method      = 'PUT'
+        Body     = $body_json     
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+            "Accept" = "*/*"
+            
+            
+        }
+    }
+
+    Write-host $req.uri
+
+    return Invoke-RestMethod @req
+
+}
+
+
