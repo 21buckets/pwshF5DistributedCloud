@@ -6,7 +6,7 @@
         A REST-based module for interacting with the F5 Distributed Cloud API
 
     .NOTES
-        Created by: Chris Triner
+        Created by: Chris Triner, with code based off Cale Robertson's amazing pwshF5 module
 
 
 #>
