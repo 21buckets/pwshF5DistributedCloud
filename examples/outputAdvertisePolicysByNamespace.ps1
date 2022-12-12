@@ -50,7 +50,7 @@ foreach($namespace in $namespaces.items){
 
 
 if ($table.Count -gt 0 ){
-    $table | Convertto-csv | Out-file -Path $outfile_path
+    $table | Convertto-csv | Out-file -Path $OutputFilePath
 } else {
     Write-host "No entries to output."
 }
