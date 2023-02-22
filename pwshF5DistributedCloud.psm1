@@ -12,13 +12,112 @@
 #>
 
 
+function Store-XCEncryptedAPIToken {
 
+    # Saves APIToken information to a file as an encrypted string
+
+    Param(
+        [Parameter(Mandatory=$true)]
+        $apiTokenName,
+
+        [Parameter(Mandatory=$true,
+            ParameterSetName="notprompt")]
+        [ValidateNotNullOrEmpty()]
+        [SecureString]$apiToken,
+
+        [Parameter(Mandatory=$true,
+            ParameterSetName="prompt")]
+        [switch]$promptForToken,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateScript({
+            if ( ($_ | Test-Path -PathType leaf)){
+                throw "outputFilePath: $_ must be a folder, not a file and must exist"
+            }
+            return $true
+        })]
+        [System.IO.FileInfo]$outputFolderPath,
+
+        [Parameter(Mandatory=$true)]
+        [string]$outputFileName
+    )
+
+    #Get the token from direct input, or prompting the user
+    if ($promptForToken){
+        $api_token = Read-Host "Enter API Token" -AsSecureString
+    }else{
+        $api_token = $apiToken
+    }
+
+    # Converts to an encrypted string so it can be saved to a file
+    $api_token = ConvertFrom-SecureString $api_token
+
+
+    #If the file already exists for storing the credential, throw an error.
+    if(test-path $outputFolderPath/$outputFileName){
+        throw 'Credential output location "${outputFolderPath}/${outputFileName} already exists. Please delete it before trying again."'
+    }
+
+    $outputContent = @{
+        "tokenName" = $apiTokenName
+        "token" = $api_token
+    } 
+    
+   
+    $outputContent | Convertto-Json | Out-File $outputFolderPath/$outputFileName
+
+
+}
+
+
+function Get-XCEncryptedAPITokenDetails {
+
+    # retrieves encrypted API token and converts it to a SecureString to use in subsequent API calls
+    # Output format is a PSCustomObject:
+    # {
+    #    "tokenName" = "String"
+    #    "token" = "System.Secure.String"
+    # }
+    
+       
+
+    Param(
+        [Parameter(Mandatory=$true)]
+        $apiTokenName,
+
+
+        [Parameter(Mandatory=$true)]
+        [ValidateScript({
+            if ( -Not ($_ | Test-Path -PathType leaf)){
+                throw "credentialFilePath: $_ must be a file, not a folder and must exist"
+            }
+            return $true
+        })]
+        [System.IO.FileInfo]$credentialFilePath
+    )
+
+    $stored_creds = Get-Content $credentialFilePath | ConvertFrom-Json
+    
+    if($apiTokenName -ne $stored_creds.tokenName){
+        throw 'No credential matching name $apiTokenName exists in "${credentialFilePath} '
+    }
+
+    $token_secure_string = $stored_creds.token | ConvertTo-SecureString
+
+    return [PSCustomObject]@{
+        "tokenName" = $stored_creds.tokenName
+        "token" = $token_secure_string
+    }
+
+
+
+}
 
 
 
 function Set-XCConnectionDetails {
     param(
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $false)]
         $tenant,
 
         [Parameter(Mandatory = $true)]
@@ -27,10 +126,26 @@ function Set-XCConnectionDetails {
 
 
      $global:XCConnection = @{
-        url               = "https://${tenant}.console.ves.volterra.io"
+        url               = set-XCUrl $tenant
         api_token         = $apiToken
     }
 
+}
+
+function set-XCUrl {
+    param(
+        [Parameter(Mandatory = $false)]
+        $tenant
+    )
+
+    $default_url = "console.ves.volterra.io"
+    if($tenant){
+        $url = "https://${tenant}.${default_url}"
+    }else{
+        $url = "https://${default_url}"
+    }
+
+    return $url
 }
 
 
@@ -53,6 +168,148 @@ function Get-XCNamespaces {
 
 
     return Invoke-RestMethod @req
+}
+
+function Get-XCCredentials {
+    
+    $uri_path = "/api/web/namespaces/system/api_credentials"
+    $xc_connection = $global:XCConnection
+
+      
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path
+        Method      = 'GET'      
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+        }
+    }
+
+
+    return Invoke-RestMethod @req
+}
+
+function Get-XCCredential {
+    Param(
+        [Parameter(Mandatory=$true)]
+        $name
+    )
+    
+    $uri_path = "/api/web/namespaces/system/api_credentials/${name}"
+    $xc_connection = $global:XCConnection
+
+      
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path
+        Method      = 'GET'      
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+        }
+    }
+
+
+    return Invoke-RestMethod @req
+}
+
+function Renew-XCCredential {
+    Param (
+        [Parameter(Mandatory=$true)]
+        $name,
+
+        [Parameter(Mandatory=$true)]
+        [Int]$renewDays
+    )
+
+    $uri_path = "/api/web/namespaces/system/renew/api_credentials"
+    $xc_connection = $global:XCConnection
+
+        $body = @{
+            "expiration_days"=$renewDays
+            "name"=$name
+            "namespace"="system"
+
+        }
+      
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path
+        Method      = 'POST'      
+        ContentType = 'application/json'
+        Body = $body | convertto-json
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+        }
+    }
+
+
+    return Invoke-RestMethod @req
+
+}
+
+Function Validate-XCAccessToken {
+    #TODO: Add better error handling for renewing etc... right now it kinda fails forward..
+    param(
+        [Parameter(Mandatory=$true)]
+        $credentialName,
+
+        [Parameter(ParameterSetName="renew")]
+        [switch]$renew,
+
+        [Parameter(ParameterSetName="renew")]
+        [int]$renewDays=30,
+
+        [Parameter(ParameterSetName="renew")]
+        [int]$renewIfLessThanDays
+    )
+
+    if(!(Test-path variable:\global:XCConnection)){
+         throw "Must provide global pre-set variables using Set-XCConnectionDetails"
+    }
+    
+
+
+    # Validate API credentials by listing them   
+    try{
+        $xc_credential = Get-XCCredential -name $credentialName
+    }catch{
+        $message = $_
+        Write-Host $message
+        throw $message
+    }
+
+    $credential_expiry = $xc_credential.object.spec.gc_spec.expiration_timestamp
+    $expiry_date = get-date -Date $credential_expiry
+    $date_now = Get-Date
+
+    $span = new-timespan -start $date_now -end $credential_expiry
+    Write-Host "There are $($span.days) days, $($span.hours) hours, $($span.minutes), and $($span.seconds) seconds until this API tokene expires"
+
+    if($renew){
+        #Only renew by set number of days if the token is close to expiry
+        if($renewIfLessThanDays){
+            if($($span.days) -lt $renewIfLessThanDays){
+                $renew_result = Renew-XCCredential -name $credentialName -renewDays $renewDays
+            }
+        }else{
+            #Renew the token by set number of days
+            $renew_result = Renew-XCCredential -name $credentialName -renewDays $renewDays
+        }
+
+        #Get Credential again to make sure it is valid.
+        $xc_credential = Get-XCCredential -name $credentialName
+        $credential_expiry = $xc_credential.object.spec.gc_spec.expiration_timestamp
+        $expiry_date = get-date -Date $credential_expiry
+    }
+
+    #Return true if new expiry date is in the future
+    if($expiry_date.ticks -lt $date_now.ticks){
+        return $false
+    }else{
+        return $true
+    }
+    
+
+
 }
 
 
