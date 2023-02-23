@@ -1070,3 +1070,107 @@ function Get-XCDNSLoadBalancers {
     return Invoke-RestMethod @req
 
 }
+
+function Get-XCDNSLoadBalancersHealthStatus {
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$namespace="system"
+    )
+
+    <#
+        https://docs.cloud.f5.com/docs/api/dns-load-balancer#operation/ves.io.schema.dns_load_balancer.CustomDataAPI.DNSLBHealthStatusList
+
+    
+    #>
+
+    $uri_path = "/api/data/namespaces/${namespace}/dns_load_balancers/health_status"
+    $xc_connection = $global:XCConnection
+
+     
+
+
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path
+        Method      = 'GET'      
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+        }
+    }
+
+    return Invoke-RestMethod @req
+
+}
+
+
+
+function Get-XCDNSLoadBalancerPoolHealthStatus {
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$namespace="system",
+        
+        [Parameter(Mandatory=$true)]
+        [string]$loadbalancerName,
+
+        [Parameter(Mandatory=$true)]
+        [string[]]$poolName
+    )
+
+    <#
+        https://docs.cloud.f5.com/docs/api/dns-load-balancer#operation/ves.io.schema.dns_load_balancer.CustomDataAPI.DNSLBPoolHealthStatus
+
+    
+    #>
+
+    $uri_path = "/api/data/namespaces/${namespace}/dns_load_balancers/${loadbalancerName}/dns_lb_pools/${poolName}/health_status"
+    $xc_connection = $global:XCConnection
+
+    
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path + $query_params_uri
+        Method      = 'GET'      
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+        }
+    }
+
+    return Invoke-RestMethod @req
+
+}
+
+
+function Get-XCDNSLoadBalancerHealthStatus {
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$namespace="system",
+        
+        [Parameter(Mandatory=$true)]
+        [string]$loadbalancerName,
+
+        [Parameter(Mandatory=$true)]
+        [string[]]$poolName
+    )
+
+    <#
+        https://docs.cloud.f5.com/docs/api/dns-load-balancer#operation/ves.io.schema.dns_load_balancer.CustomDataAPI.DNSLBHealthStatus
+
+    
+    #>
+
+    $uri_path = "/api/data/namespaces/${namespace}/dns_load_balancers/${loadbalancerName}/health_status"
+    $xc_connection = $global:XCConnection
+
+    
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path + $query_params_uri
+        Method      = 'GET'      
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+        }
+    }
+
+    return Invoke-RestMethod @req
+
+}
