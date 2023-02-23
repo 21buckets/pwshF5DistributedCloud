@@ -1,3 +1,5 @@
+#Requires -Modules pwshF5DistributedCloud
+
 
 Param(
     [Parameter(Mandatory=$true)]
@@ -18,17 +20,7 @@ Param(
 )
 
 
-<#
-    Helper Functions
-#>
 
-function Process-Object{
-    Param(
-        $object
-    )
-}
-
-#//------- End Helper Functions
 
 
 #Echo where the script is executing from to set working path
@@ -36,7 +28,7 @@ $working_path = [System.IO.Path]::GetDirectoryName($myInvocation.MyCommand.Defin
 $output_path = $working_path + '\output'
 If(!(test-path $output_path)) { New-Item -ItemType Directory -Force -Path $output_path > $null}
 
-$time_stamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ss"
+
 
 <# 
     Get credentials from file
@@ -61,14 +53,51 @@ if($renew_results -eq $false){
     Collect info from API for each object required. The output will end up in $output_path and look something like this:
 
     --- Add log line here --
-
+    {"tenant":"volterra-******","get_spec":{"http_health_check":{"send":"HEAD / HTTP/1.0\r\n\r\n","receive":"HTTP/1.","health_check_port":443},"dns_lb_pools":[{"tenant":"volterra-******","namespace":"system","name":"test-dns-pool"}]},"system_metadata":{"modification_timestamp":null,"creation_timestamp":"2023-02-13T22:53:31.338872789Z","creator_id":"*********"},"name":"mon-dns","event_collect_timestamp":"2023-02-23T11:59:38","description":"","uid":"**************"}
     The following objects will be collected:
     * ('lbr_metadata','members_health','load_balanced_records','monitors','pools','virtual_servers','nameservers')
 
 #>
 
-$monitors = Get-XCDNSMonitors.items
+$time_stamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ss"
+$health_checks = (Get-XCDNSHealthChecks -reportFields @("spec")).items
 
+foreach($hc in $health_checks){
+    [PSCustomObject]$splunk_data = [ordered]@{
+        "event_collect_timestamp" = $time_stamp
+        "tenant" = $hc.tenant
+        "name" = $hc.name
+        "uid" = $hc.uid
+        "description" = $hc.description
+        "system_metadata" = @{
+            "creation_timestamp" = $hc.system_metadata.creation_timestamp
+            "modification_timestamp" = $hc.system_metadata.modification_timestamp
+            "creator_id" = $hc.system_metadata.creator_id
+        }
+        "get_spec"=$hc.get_spec
+    } | ConvertTo-Json -Depth 10  -Compress | Out-File -Append -Encoding ascii -FilePath $working_path\monitor_configuration.txt
+
+
+}
+
+
+$load_balancers = (Get-XCDNSLoadBalancers -reportFields @("spec")).items
+
+foreach($lb in $load_balancers){
+    [PSCustomObject]$splunk_data = [ordered]@{
+        "event_collect_timestamp" = $time_stamp
+        "tenant" = $lb.tenant
+        "name" = $lb.name
+        "uid" = $lb.uid
+        "description" = $lb.description
+        "system_metadata" = @{
+            "creation_timestamp" = $lb.system_metadata.creation_timestamp
+            "modification_timestamp" = $lb.system_metadata.modification_timestamp
+            "creator_id" = $lb.system_metadata.creator_id
+        }
+        "get_spec"=$lb.get_spec
+    } | ConvertTo-Json -Depth 10  -Compress | Out-File -Append -Encoding ascii -FilePath $working_path\loadbalancer_configuration.txt
+}
 
 
 

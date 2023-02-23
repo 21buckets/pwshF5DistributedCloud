@@ -99,7 +99,7 @@ function Get-XCEncryptedAPITokenDetails {
     $stored_creds = Get-Content $credentialFilePath | ConvertFrom-Json
     
     if($apiTokenName -ne $stored_creds.tokenName){
-        throw 'No credential matching name $apiTokenName exists in "${credentialFilePath} '
+        throw "No credential matching name ${apiTokenName} exists in ${credentialFilePath}" 
     }
 
     $token_secure_string = $stored_creds.token | ConvertTo-SecureString
@@ -273,8 +273,11 @@ Function Validate-XCAccessToken {
         $xc_credential = Get-XCCredential -name $credentialName
     }catch{
         $message = $_
-        Write-Host $message
-        throw $message
+        if($message -contains "api credential entries: object not found"){
+            Write-Error $message
+        }
+        
+        throw "Credential with name $credentialName not found. Make sure to check the GUI for credential name information, as XC will suffix the name with a randomised string"
     }
 
     $credential_expiry = $xc_credential.object.spec.gc_spec.expiration_timestamp
@@ -891,4 +894,179 @@ function Set-XCDNSZone {
 
 
 
+function Get-XCDNSHealthChecks {
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$namespace="system",
+        
+        [Parameter(Mandatory=$false)]
+        [string]$labelFilter,
 
+        [Parameter(Mandatory=$false)]
+        [string[]]$reportFields,
+
+        [Parameter(Mandatory=$false)]
+        [string[]]$reportStatusFields
+    )
+
+    <#
+        https://docs.cloud.f5.com/docs/api/dns-lb-health-check#operation/ves.io.schema.dns_lb_health_check.API.List
+
+        Seems to be an issue with "report_fields" query parameter. My expectation is the values should match the response schema, however
+        you can enter garbage strings and "system_metadata" and "get_spec" are populated
+    
+    #>
+
+    $uri_path = "/api/config/dns/namespaces/${namespace}/dns_lb_health_checks"
+    $xc_connection = $global:XCConnection
+
+    
+    $query_params = @{ }
+
+    if($reportFields.Length -gt 0){
+        $query_params["report_fields"]=$reportFields
+    }
+
+    if($reportStatusFields.Length -gt 0){
+        $query_params["report_status_fields"]=$reportStatusFields
+    }
+
+    if($labelFilter){
+        $query_params["label_filter"]=$labelFilter
+    }
+
+    $query_params_uri = ""
+    foreach($key in $query_params.keys){
+        if($query_params_uri -eq ""){
+            $query_params_uri = "?"
+        }else{
+            $query_params_uri += "&"
+        }
+
+        $query_params_uri += $key+"="+($($query_params[$key]) -join ",")
+    }
+   
+    
+
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path + $query_params_uri
+        Method      = 'GET'      
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+        }
+    }
+
+    return Invoke-RestMethod @req
+
+}
+
+
+
+function Get-XCDNSHealthCheck {
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$namespace="system",
+        
+        [Parameter(Mandatory=$true)]
+        [string]$name,
+
+        [Parameter(Mandatory=$false)]
+        [ValidateNotNullorEmpty()]
+        [string]$reponseFormat
+    )
+
+    <#
+        https://docs.cloud.f5.com/docs/api/dns-lb-health-check#operation/ves.io.schema.dns_lb_health_check.API.Get
+    #>
+ 
+
+    $uri_path = "/api/config/dns/namespaces/${namespace}/dns_lb_health_checks/${name}"
+    $xc_connection = $global:XCConnection
+
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path
+        Method      = 'GET'      
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+        }
+    }
+
+    if($responseFormat){
+        $req.Uri += "?response_format=${responseFormat}"
+    }
+
+
+    return Invoke-RestMethod @req 
+
+}
+
+
+
+function Get-XCDNSLoadBalancers {
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$namespace="system",
+        
+        [Parameter(Mandatory=$false)]
+        [string]$labelFilter,
+
+        [Parameter(Mandatory=$false)]
+        [string[]]$reportFields,
+
+        [Parameter(Mandatory=$false)]
+        [string[]]$reportStatusFields
+    )
+
+    <#
+        https://docs.cloud.f5.com/docs/api/dns-load-balancer#operation/ves.io.schema.dns_load_balancer.API.List
+
+        Seems to be an issue with "report_fields" query parameter. My expectation is the values should match the response schema, however
+        you can enter garbage strings and "system_metadata" and "get_spec" are populated
+    
+    #>
+
+    $uri_path = "/api/config/dns/namespaces/${namespace}/dns_load_balancers"
+    $xc_connection = $global:XCConnection
+
+    
+    $query_params = @{ }
+
+    if($reportFields.Length -gt 0){
+        $query_params["report_fields"]=$reportFields
+    }
+
+    if($reportStatusFields.Length -gt 0){
+        $query_params["report_status_fields"]=$reportStatusFields
+    }
+
+    if($labelFilter){
+        $query_params["label_filter"]=$labelFilter
+    }
+
+    $query_params_uri = ""
+    foreach($key in $query_params.keys){
+        if($query_params_uri -eq ""){
+            $query_params_uri = "?"
+        }else{
+            $query_params_uri += "&"
+        }
+
+        $query_params_uri += $key+"="+($($query_params[$key]) -join ",")
+    }
+   
+    
+
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path + $query_params_uri
+        Method      = 'GET'      
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+        }
+    }
+
+    return Invoke-RestMethod @req
+
+}
