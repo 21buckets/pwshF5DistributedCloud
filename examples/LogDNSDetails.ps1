@@ -57,6 +57,9 @@ if($renew_results -eq $false){
     The following objects will be collected:
     * ('lbr_metadata','members_health','load_balanced_records','monitors','pools','virtual_servers','nameservers')
 
+    One might question why i havent added the below loops to a function to clean up the code. At the time of writing this I don't know which bits of config I want to collect from each object type, so 
+    am keeping it separate for the time being.
+
 #>
 
 $time_stamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ss"
@@ -76,8 +79,6 @@ foreach($hc in $health_checks){
         }
         "get_spec"=$hc.get_spec
     } | ConvertTo-Json -Depth 10  -Compress | Out-File -Append -Encoding ascii -FilePath $working_path\monitor_configuration.txt
-
-
 }
 
 
