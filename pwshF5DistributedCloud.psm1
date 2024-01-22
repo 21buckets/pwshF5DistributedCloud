@@ -148,6 +148,139 @@ function set-XCUrl {
     return $url
 }
 
+function Get-XCVirtualSites{
+
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$namespace,
+
+        [Parameter(Mandatory=$false)]
+        [string]$label_filter,
+
+        [Parameter(Mandatory=$false)]
+        [string]$report_fields,
+
+        [Parameter(Mandatory=$false)]
+        [string]$report_staus_fields
+
+    )
+    $uri_path = "/api/config/namespaces/${namespace}/virtual_sites"
+    $xc_connection = $global:XCConnection
+
+    $query_params = @{ }
+
+    if($report_fields.Length -gt 0){
+        $query_params["report_fields"]=$report_fields
+    }
+
+    if($report_status_fields.Length -gt 0){
+        $query_params["report_status_fields"]=$report_status_fields
+    }
+
+    if($label_filter){
+        $query_params["label_filter"]=$label_filter
+    }
+
+    $query_params_uri = ""
+    foreach($key in $query_params.keys){
+        if($query_params_uri -eq ""){
+            $query_params_uri = "?"
+        }else{
+            $query_params_uri += "&"
+        }
+
+        $query_params_uri += $key+"="+($($query_params[$key]) -join ",")
+    }
+
+      
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path + $query_params_uri
+        Method      = 'GET'      
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+        }
+    }
+
+
+    return (Invoke-RestMethod @req) | ConvertPSObjectToHashtable
+}
+
+function new-XCVirtualSite{
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$name,
+
+        [Parameter(Mandatory=$true)]
+        [string]$namespace,
+
+        [Parameter(Mandatory=$false)]
+        [string]$description,
+
+        [Parameter(Mandatory=$false)]
+        [Hashtable]$annotations,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$disabled,
+
+        [Parameter(Mandatory=$false)]
+        [Hashtable]$labels = @{},
+
+        [Parameter(Mandatory=$false)]
+        [Hashtable]$site_selector = @{},
+
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("INVALID","REGIONAL_EDGE","CUSTOMER_EDGE")]
+        [string]$site_type
+    )
+  
+    $uri_path = "/api/config/namespaces/${namespace}/virtual_sites"
+    $xc_connection = $global:XCConnection
+
+
+
+
+
+    #Initial Object creation
+    $body = @{
+        "metadata" = @{
+            "name" = $name.ToLower()
+            "labels" = $labels
+            "namespace" = $name
+        }
+        "spec" = @{}
+    }
+
+    if($description){$body.metadata.description = $description}
+    if($annotations){$body.metadata.annotations = $annotations}
+    #disabled property doesnt seem to do anything
+    if($disabled.IsPresent -eq $true){$body.metadata.disable = $true}
+
+
+    
+
+    $body_json = ConvertTo-json $body -depth 100
+    Write-host $body_json
+
+
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path
+        Method      = 'POST'
+        Body     = $body_json     
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+            "Accept" = "*/*"
+            
+            
+        }
+    }
+
+    #Write-host $req.uri
+
+    return Invoke-RestMethod @req
+
+}
 
 
 
@@ -166,6 +299,192 @@ function Get-XCNamespaces {
         }
     }
 
+
+    return (Invoke-RestMethod @req) | ConvertPSObjectToHashtable
+}
+
+function Get-XCNamespace {
+
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$name
+    )
+
+    #Namespaces must be all lowercase
+    $name = $name.toLower()
+    
+    $uri_path = "/api/web/namespaces/$name"
+    $xc_connection = $global:XCConnection
+
+      
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path
+        Method      = 'GET'      
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+        }
+    }
+
+
+    $response = Invoke-RestMethod @req
+
+    if ( -not $? ){
+        $msg = $Error[0].ErrorDetails.Message
+        #Write-Host $msg
+    }
+
+    return $response
+}
+
+function New-XCNamespace {
+
+    <#
+        Creates a namespace in an XC tenancy, provided the namespace does not already exist.
+
+        Does not support assigning users and explicit roles
+
+    #>
+
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$name,
+
+        [Parameter(Mandatory=$false)]
+        [string]$description,
+
+        [Parameter(Mandatory=$false)]
+        [PSCustomObject]$annotations,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$disabled,
+
+        [Parameter(Mandatory=$false)]
+        [PSCustomObject]$labels = @{}
+
+    
+    )
+  
+    $uri_path = "/api/web/namespaces"
+    $xc_connection = $global:XCConnection
+
+
+
+
+
+    #Initial Object creation
+    [PSCustomObject]$body = @{
+        "metadata" = @{
+            "name" = $name.ToLower()
+            "labels" = $labels
+            #"namespace" = $name
+        }
+        "spec" = @{}
+    }
+
+    if($description){$body.metadata.description = $description}
+    if($annotations){$body.metadata.annotations = $annotations}
+    #disabled property doesnt seem to do anything
+    if($disabled.IsPresent -eq $true){$body.metadata.disable = $true}
+
+
+    
+
+    $body_json = ConvertTo-json $body -depth 100
+    Write-host $body_json
+
+
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path
+        Method      = 'POST'
+        Body     = $body_json     
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+            "Accept" = "*/*"
+            
+            
+        }
+    }
+
+    #Write-host $req.uri
+
+    return Invoke-RestMethod @req
+}
+
+function Set-XCNamespace {
+
+    <#
+        Creates a namespace in an XC tenancy, provided the namespace does not already exist.
+
+        Does not support assigning users and explicit roles
+
+    #>
+
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$name,
+
+        [Parameter(Mandatory=$false)]
+        [string]$description,
+
+        [Parameter(Mandatory=$false)]
+        [PSCustomObject]$annotations,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$disabled,
+
+        [Parameter(Mandatory=$false)]
+        [PSCustomObject]$labels = @{}
+
+    
+    )
+
+    $name = $name.ToLower()
+  
+    $uri_path = "/api/web/namespaces/${name}"
+    $xc_connection = $global:XCConnection
+
+
+
+
+
+    #Initial Object creation
+    [PSCustomObject]$body = @{
+        "metadata" = @{
+            "name" = $name.ToLower()
+            "labels" = $labels
+            #"namespace" = $name
+        }
+        "spec" = @{}
+    }
+
+    if($description){$body.metadata.description = $description}
+    if($annotations){$body.metadata.annotations = $annotations}
+    #disabled property doesnt seem to do anything
+    if($disabled.IsPresent -eq $true){$body.metadata.disable = $true}
+
+
+    
+
+    $body_json = ConvertTo-json $body -depth 100
+    Write-host $body_json
+
+
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path
+        Method      = 'PUT'
+        Body     = $body_json     
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+            "Accept" = "*/*"
+            
+            
+        }
+    }
+
+    #Write-host $req.uri
 
     return Invoke-RestMethod @req
 }
@@ -211,6 +530,197 @@ function Get-XCCredential {
 
     return Invoke-RestMethod @req
 }
+
+function Get-XCUsers {
+   
+    $uri_path = "/api/web/custom/namespaces/system/user_roles"
+    $xc_connection = $global:XCConnection
+
+      
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path
+        Method      = 'GET'      
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+        }
+    }
+
+
+    $response = Invoke-RestMethod @req
+
+    if ( -not $? ){
+        $msg = $Error[0].ErrorDetails.Message
+        #Write-Host $msg
+    }
+
+    return $response | ConvertPSObjectToHashtable
+}
+function New-XCUser {
+
+    <#
+        Creates a user in F5 XC
+
+    #>
+
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$email,
+
+        [Parameter(Mandatory=$true)]
+        [string]$firstName,
+        [Parameter(Mandatory=$true)]
+        [string]$lastName,
+
+        [Parameter(Mandatory=$false)]
+        [string[]]$groupNames,
+
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("SSO","VOLTERRA_MANAGED","UNDEFINED")]
+        [string]$idmType="SSO",
+
+        [Parameter(Mandatory=$false)]
+        [string]$namespaceRolesJson='',
+
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("USER","SERVICE","DEBUG")]
+        [string]$type="USER"
+
+        
+
+    
+    )
+  
+    $uri_path = "/api/web/custom/namespaces/system/user_roles"
+    $xc_connection = $global:XCConnection
+
+
+
+    $namespace_roles = $namespaceRolesJson | convertfrom-json
+
+    #Initial Object creation
+
+    $body = @{
+        "namespace" = "system"
+        "email" = $email
+        "first_name" = $firstName
+        "last_name" = $lastName
+        "idm_type" = $idmType
+        "type" = $type
+        "namespace_roles" = $namespace_roles
+
+
+    }
+
+    if($groupNames){$body.group_names = $groupNames}
+    if($namespaceRoles){$body.namespace_roles = $namespaceRoles}
+    
+
+    $body_json = ConvertTo-json $body -depth 100
+    Write-host $body_json
+
+    
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path
+        Method      = 'POST'
+        Body     = $body_json     
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+            "Accept" = "*/*"
+            
+            
+        }
+    }
+
+    #Write-host $req.uri
+
+    return Invoke-RestMethod @req
+}
+
+function Set-XCUser {
+
+    <#
+        Creates a user in F5 XC
+
+    #>
+
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$email,
+
+        [Parameter(Mandatory=$true)]
+        [string]$first_name,
+        [Parameter(Mandatory=$true)]
+        [string]$last_name,
+
+        [Parameter(Mandatory=$false)]
+        [string[]]$group_names,
+
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("SSO","VOLTERRA_MANAGED","UNDEFINED")]
+        [string]$idm_type="SSO",
+
+        [Parameter(Mandatory=$false)]
+        [hashtable[]]$namespace_roles,
+
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("USER","SERVICE","DEBUG")]
+        [string]$type="USER"
+
+        
+
+    
+    )
+  
+    $uri_path = "/api/web/custom/namespaces/system/user_roles"
+    $xc_connection = $global:XCConnection
+
+
+
+    #$namespace_roles = $namespaceRolesJson | convertfrom-json
+
+    #Initial Object creation
+
+    $body = @{
+        "namespace" = "system"
+        "email" = $email
+        "first_name" = $first_name
+        "last_name" = $last_name
+        "idm_type" = $idm_type
+        "type" = $type
+        "namespace_roles" = $namespace_roles
+        "group_names" = $group_names
+
+
+    }
+
+    if($groupNames){$body.group_names = $groupNames}
+    if($namespaceRoles){$body.namespace_roles = $namespaceRoles}
+    
+
+    $body_json = ConvertTo-json $body -depth 100
+    Write-host $body_json
+
+    
+    $req = @{
+        Uri         = $xc_connection.url + $uri_path
+        Method      = 'PUT'
+        Body     = $body_json     
+        ContentType = 'application/json'
+        Headers = @{
+            "Authorization" = "APIToken $($xc_connection.api_token)"
+            "Accept" = "*/*"
+            
+            
+        }
+    }
+
+    #Write-host $req.uri
+
+    return Invoke-RestMethod @req
+}
+
 
 function Renew-XCCredential {
     Param (
@@ -463,7 +973,14 @@ function New-XCDNSDomain {
     $uri_path = "/api/config/namespaces/${namespace}/dns_domains"
     $xc_connection = $global:XCConnection
 
-    $dnssec_mode = $dnssecEnable ? "DNSSEC_ENABLE" : "DNSSEC_DISABLE"
+    if ($dnssecEnable -eq $true){
+      dnssec_mode = "DNSSEC_ENABLE"
+    }else{
+        $dnssec_mode = "DNSSEC_DISABLE"
+    }
+
+
+   #$dnssec_mode = $dnssecEnable ? "DNSSEC_ENABLE" : "DNSSEC_DISABLE"
     
 
     [PSCustomObject]$body = @{
@@ -1173,4 +1690,43 @@ function Get-XCDNSLoadBalancerHealthStatus {
 
     return Invoke-RestMethod @req
 
+}
+
+
+
+function ConvertPSObjectToHashtable
+{
+    param (
+        [Parameter(ValueFromPipeline)]
+        $InputObject
+    )
+
+    process
+    {
+        if ($null -eq $InputObject) { return $null }
+
+        if ($InputObject -is [System.Collections.IEnumerable] -and $InputObject -isnot [string])
+        {
+            $collection = @(
+                foreach ($object in $InputObject) { ConvertPSObjectToHashtable $object }
+            )
+
+            Write-Output -NoEnumerate $collection
+        }
+        elseif ($InputObject -is [psobject])
+        {
+            $hash = @{}
+
+            foreach ($property in $InputObject.PSObject.Properties)
+            {
+                $hash[$property.Name] = (ConvertPSObjectToHashtable $property.Value).PSObject.BaseObject
+            }
+
+            $hash
+        }
+        else
+        {
+            $InputObject
+        }
+    }
 }
